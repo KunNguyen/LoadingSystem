@@ -1,0 +1,17 @@
+{
+  "name": "Jis.LoadingSystems",
+  "rootNamespace": "Jis.LoadingSystems",
+  "references": [
+    "UniTask",
+    "UnityEngine"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

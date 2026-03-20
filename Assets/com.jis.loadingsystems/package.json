@@ -1,0 +1,14 @@
+{
+  "name": "com.jis.loadingsystem",
+  "version": "1.0.0",
+  "displayName": "JIS Loading System",
+  "description": "Reusable per-scene loading module with pipeline pattern, scene lifecycle, and cancellation support.",
+  "unity": "2022.3",
+  "author": {
+    "name": "JIS",
+    "url": ""
+  },
+  "dependencies": {
+    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask"
+  }
+}
