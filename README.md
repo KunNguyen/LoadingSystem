@@ -10,6 +10,42 @@ Unity package cho scene loading flow, publish dưới dạng UPM package tại:
 - Tự hủy async task khi chuyển scene (cancellation token)
 - Tách biệt UI qua interface `ILoadingUI` (dễ tích hợp với UI framework bất kỳ)
 
+## Timeline thực thi
+
+### App mở lần đầu (`StartGame(fromLogin: false)`)
+
+```text
+StartGame()
+-> ShowLoadingUI
+-> [Boot] LoadStartScene (0-10%, mặc định no-op)
+-> [InitSDK] Load InitSdkScene (10-30%)
+-> [CheckAuth] CheckAuthState()
+-> [LoadLocalData] onLoadLocalDataAsync
+-> [LoadCloudData] onSyncCloudDataAsync (chỉ khi IsLoggedIn == true)
+-> [EnterGame] Load ControllerScene (70-100%)
+-> Notify ISceneLifecycle.OnSceneLoaded(payload)
+-> HideLoadingUI
+```
+
+### Đi từ login vào game (`StartGame(fromLogin: true)`)
+
+```text
+StartGame(fromLogin: true)
+-> ShowLoadingUI
+-> Bỏ qua Boot/InitSDK/CheckAuth/LoadData
+-> EnterGame ngay: Load ControllerScene (0-100%)
+-> OnSceneLoaded(payload)
+-> HideLoadingUI
+```
+
+## Vai trò các scene
+
+- `BootstrapScene`: chứa `SceneFlowManager` (DDOL) + `ILoadingUI`.
+- `StartScene`: entry point, gọi `StartGame()`.
+- `InitSdkScene`: init SDK (Firebase, Ads, IAP...), chỉ chạy một lần mỗi phiên.
+- `ControllerScene`: scene điều phối; nhận payload và quyết định load scene tiếp theo.
+- `GameplayScene`: scene nghiệp vụ chính, thường load từ `ControllerScene`.
+
 ## Cài đặt (UPM từ GitHub)
 
 Thêm vào `Packages/manifest.json`:
@@ -24,6 +60,16 @@ Thêm vào `Packages/manifest.json`:
 ```
 
 ## Hướng dẫn tích hợp
+
+### Checklist import nhanh
+
+1. Thêm dependency trong `Packages/manifest.json` (block JSON bên dưới).
+2. Tạo `BootstrapScene`, add `SceneFlowManager`.
+3. Implement `ILoadingUI`, gán vào `loadingUIRaw`.
+4. Cấu hình `initSdkScene`, `controllerScene`.
+5. Ở scene đầu, gọi `SceneFlowManager.Instance.StartGame().Forget();`
+6. Trong `ControllerScene`, implement `ISceneLifecycle` để xử lý payload và điều hướng.
+7. Add đủ scene vào Build Settings.
 
 ### 1) Implement `ILoadingUI`
 
@@ -86,6 +132,28 @@ public class ControllerSceneController : MonoBehaviour, ISceneLifecycle
 {
     public async UniTask OnSceneLoaded(object payload)
     {
+        await SceneFlowManager.Instance.LoadSceneByName(
+            "GameplayScene", null, LoadSceneMode.Additive);
+    }
+}
+```
+
+Ví dụ có xử lý payload trước khi vào gameplay:
+
+```csharp
+public class ControllerSceneController : MonoBehaviour, ISceneLifecycle
+{
+    public async UniTask OnSceneLoaded(object payload)
+    {
+        if (payload is ScenePayload p && p.FromLogin)
+            await ShowWelcomeBackPopup();
+
+        if (payload is ScenePayload reloadPayload && reloadPayload.IsReload)
+        {
+            await ReloadGameplay();
+            return;
+        }
+
         await SceneFlowManager.Instance.LoadSceneByName(
             "GameplayScene", null, LoadSceneMode.Additive);
     }
@@ -179,3 +247,10 @@ Assets/
 - `SceneFlowManager` dùng `DontDestroyOnLoad`, nên đặt ở bootstrap scene và không load lại scene này.
 - `ILoadingUI` có thể null; flow vẫn chạy nhưng không cập nhật UI.
 - Có thể tạo nhiều pipeline khác nhau (boot, login, reload) bằng cách kế thừa `LoadingPipeline`.
+
+## Ý nghĩa tham số `StartGame`
+
+- `reload`: đánh dấu đây là lượt reload dữ liệu/gameplay.
+- `fromLogin`: `true` thì vào game ngay, bỏ qua các bước boot khác.
+- `onLoadLocalDataAsync`: callback load dữ liệu local.
+- `onSyncCloudDataAsync`: callback sync dữ liệu cloud.

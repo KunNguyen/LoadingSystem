@@ -40,7 +40,88 @@ SceneFlowManager (MonoBehaviour, DDOL)
     └── ISceneLifecycle    ← Implement trên controller trong mỗi scene
 ```
 
+## Timeline thực thi (chi tiết)
+
+### A) App mở lần đầu / Boot đầy đủ (`StartGame(fromLogin: false)`)
+
+```text
+T0: StartSceneController.Start()
+    -> SceneFlowManager.Instance.StartGame(...)
+    -> ShowLoadingUI(), progress = 0%
+
+T1: [Boot]
+    -> LoadStartScene(0% -> 10%) [mặc định no-op, để mở rộng nếu cần]
+
+T2: [InitSDK]
+    -> Load InitSdkScene (Single, 10% -> 30%)
+    -> OnSceneLoaded(payload) của InitSdkScene (nếu có)
+    -> _sdkInitialized = true
+
+T3: [CheckAuth]
+    -> CheckAuthState() (mặc định: IsLoggedIn = false, có thể override)
+
+T4: [LoadLocalData]
+    -> chạy onLoadLocalDataAsync delegate (nếu truyền vào)
+
+T5: [LoadCloudData]
+    -> nếu IsLoggedIn == true: chạy onSyncCloudDataAsync
+    -> nếu false: skip, set progress thẳng lên 70%
+
+T6: [EnterGame]
+    -> Load ControllerScene (Single, 70% -> 100%)
+    -> gọi OnSceneLoaded(payload) cho toàn bộ ISceneLifecycle trong scene
+    -> HideLoadingUI()
+```
+
+### B) Đi từ Login sang game (`StartGame(fromLogin: true)`)
+
+```text
+T0: StartGame(fromLogin: true)
+T1: Bỏ qua Boot/InitSDK/CheckAuth/LoadData
+T2: EnterGame ngay:
+    -> Load ControllerScene (0% -> 100%)
+    -> OnSceneLoaded(payload)
+    -> HideLoadingUI()
+```
+
+## Vai trò từng scene
+
+- `BootstrapScene`
+  - Chứa `SceneFlowManager` (DDOL) và đối tượng implement `ILoadingUI`.
+  - Là scene gốc giữ manager sống xuyên suốt app.
+- `StartScene`
+  - Scene entry của app (logo/splash/menu khởi động).
+  - Thường chỉ có nhiệm vụ gọi `StartGame()`.
+- `InitSdkScene`
+  - Nơi init SDK bên thứ 3 (Firebase, Ads, IAP, Analytics...).
+  - Được load `Single`, chỉ chạy một lần trong phiên nhờ `_sdkInitialized`.
+- `ControllerScene`
+  - Scene điều phối sau boot, nhận `ScenePayload` qua `OnSceneLoaded`.
+  - Từ đây có thể quyết định load `GameplayScene`, `HomeScene`, `TutorialScene`...
+- `GameplayScene` (hoặc scene tính năng)
+  - Scene nghiệp vụ chính; có thể load `Additive` hoặc `Single` tuỳ luồng game.
+
 ## Quick Start
+
+### Checklist import vào project (khuyên dùng)
+
+1. Mở `Packages/manifest.json`, thêm dependency:
+
+```json
+{
+  "dependencies": {
+    "com.jis.loadingsystem": "https://github.com/KunNguyen/LoadingSystem.git?path=Assets/com.jis.loadingsystems",
+    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask"
+  }
+}
+```
+
+2. Tạo `BootstrapScene` và add `SceneFlowManager`.
+3. Tạo loading UI adapter implement `ILoadingUI`, kéo vào `loadingUIRaw`.
+4. Cấu hình `initSdkScene` + `controllerScene` trong Inspector.
+5. Thêm `StartSceneController` ở scene đầu để gọi `StartGame()`.
+6. Trong `ControllerScene`, implement `ISceneLifecycle` để điều hướng scene thực tế.
+7. Đảm bảo các scene có trong Build Settings.
 
 ### 1. Tạo ILoadingUI adapter
 
@@ -121,6 +202,35 @@ public class ControllerSceneController : MonoBehaviour, ISceneLifecycle
 }
 ```
 
+Ví dụ điều hướng scene theo payload:
+
+```csharp
+public class ControllerSceneController : MonoBehaviour, ISceneLifecycle
+{
+    public async UniTask OnSceneLoaded(object payload)
+    {
+        if (payload is ScenePayload p)
+        {
+            if (p.FromLogin)
+            {
+                await ShowWelcomeBackPopup();
+            }
+
+            if (p.IsReload)
+            {
+                await ReloadGameplay();
+                return;
+            }
+        }
+
+        await SceneFlowManager.Instance.LoadSceneByName(
+            "GameplayScene",
+            null,
+            UnityEngine.SceneManagement.LoadSceneMode.Additive);
+    }
+}
+```
+
 ### 5. Cancellation token
 
 Dùng token khi chạy async trong scene để tự hủy khi chuyển scene:
@@ -145,6 +255,13 @@ await SomeAsyncWork(ct);
 | `SceneFlowManager.Instance.LoadSceneByName(...)` | Load scene tùy ý |
 | `SceneFlowManager.Instance.GetCurrentSceneCancellationToken()` | Token hủy khi đổi scene |
 | `ISceneLifecycle.OnSceneLoaded(payload)` | Callback khi scene load xong |
+
+## Giải thích nhanh tham số StartGame
+
+- `reload`: đánh dấu đây là lượt reload dữ liệu/gameplay.
+- `fromLogin`: nếu `true`, pipeline vào game ngay (bỏ qua các bước boot khác).
+- `onLoadLocalDataAsync`: callback load dữ liệu local (cache, save local, db local...).
+- `onSyncCloudDataAsync`: callback sync cloud (save cloud/profile/inventory...).
 
 ## Migration từ project hiện tại
 
