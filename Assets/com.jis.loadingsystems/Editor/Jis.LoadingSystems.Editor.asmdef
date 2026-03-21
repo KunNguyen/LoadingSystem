@@ -1,0 +1,21 @@
+{
+  "name": "Jis.LoadingSystems.Editor",
+  "rootNamespace": "Jis.LoadingSystems.Editor",
+  "references": [
+    "Jis.LoadingSystems",
+    "UniTask",
+    "UnityEngine",
+    "UnityEditor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

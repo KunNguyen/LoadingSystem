@@ -103,7 +103,18 @@ T2: EnterGame ngay:
 
 ## Quick Start
 
-### Checklist import vào project (khuyên dùng)
+### Setup 1 bước (khuyên dùng)
+
+Sau khi thêm package, vào menu:
+
+- **Tools > JIS Loading System > Setup Template (1-click)**  
+  Hoặc  
+- **Tools > JIS Loading System > Setup Template** (chọn thư mục)  
+- Hoặc **Right-click trong Project > Create > JIS Loading System > Setup Template**
+
+Template sẽ tạo sẵn: scenes (BootstrapScene, InitSdkScene, ControllerScene, GameplayScene), scripts mẫu, Build Settings. Mở `BootstrapScene` và Play để test.
+
+### Checklist import thủ công
 
 1. Mở `Packages/manifest.json`, thêm dependency:
 
