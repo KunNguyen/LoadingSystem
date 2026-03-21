@@ -162,6 +162,31 @@ public class ControllerSceneController : MonoBehaviour, ISceneLifecycle
 
 ## Tuỳ chỉnh nâng cao
 
+### Progress & step hiện tại (cho LoadingUI)
+
+```csharp
+// Đọc progress (0–1) và step đang chạy
+var progress = SceneFlowManager.Instance.CurrentProgress;
+var step = SceneFlowManager.Instance.CurrentStep;  // LoadingStep enum
+```
+
+### Tùy chỉnh pipeline steps (theo từng game)
+
+Override `GetSteps()` trong pipeline kế thừa để thêm, bớt, đổi thứ tự steps:
+
+```csharp
+public class MyLoadingPipeline : LoadingPipeline
+{
+    protected override List<PipelineStepDefinition> GetSteps()
+    {
+        var steps = base.GetSteps();  // hoặc tạo mới
+        // Thêm step FetchRemoteConfig trước CheckAuth
+        steps.Insert(2, new PipelineStepDefinition(LoadingStep.FetchRemoteConfig, FetchRemoteConfigAsync, 0.35f));
+        return steps;
+    }
+}
+```
+
 ### Truyền delegate load/sync data
 
 ```csharp

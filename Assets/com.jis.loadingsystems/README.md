@@ -254,17 +254,61 @@ await SomeAsyncWork(ct);
 
 - **LoadingContext**: Thêm field cho pipeline
 - **ScenePayload**: Thêm field cho payload truyền scene
-- **LoadingPipeline**: Kế thừa và override `CheckAuthState()` để tích hợp Firebase/auth
+- **LoadingPipeline**: Override `GetSteps()` để tùy chỉnh steps theo game
 - **LoadingStep**: Thêm enum mới nếu cần bước khác
+- **CurrentProgress, CurrentStep**: Đọc từ `SceneFlowManager.Instance` để hiển thị trên LoadingUI
+
+### Tùy chỉnh pipeline steps
+
+Override `GetSteps()` trong pipeline kế thừa:
+
+```csharp
+public class MyLoadingPipeline : LoadingPipeline
+{
+    public MyLoadingPipeline(SceneFlowManager flow, LoadingContext ctx, Func<UniTask> onLoad, Func<UniTask> onSync)
+        : base(flow, ctx, onLoad, onSync) { }
+
+    protected override List<PipelineStepDefinition> GetSteps()
+    {
+        var steps = new List<PipelineStepDefinition>
+        {
+            new(LoadingStep.Boot, () => Flow.LoadStartScene(0f, 0.1f), 0.1f),
+            new(LoadingStep.InitSDK, () => Flow.LoadInitSdkScene(0.1f, 0.3f), 0.3f),
+            new(LoadingStep.FetchRemoteConfig, FetchRemoteConfigAsync, 0.35f),  // thêm step mới
+            new(LoadingStep.CheckAuth, CheckAuthState, 0.4f),
+            new(LoadingStep.LoadLocalData, () => /* ... */ UniTask.CompletedTask, 0.5f)
+        };
+        if (Context.IsLoggedIn)
+            steps.Add(new PipelineStepDefinition(LoadingStep.LoadCloudData, SyncCloudData, 0.7f));
+        else
+            Flow.UpdateLoadingBar(0.7f);
+        steps.Add(new PipelineStepDefinition(LoadingStep.EnterGame, () => Flow.LoadControllerScene(...), 1f));
+        return steps;
+    }
+
+    private async UniTask FetchRemoteConfigAsync() => await MyRemoteConfig.FetchAsync();
+}
+```
+
+### Đọc progress hiện tại (cho LoadingUI)
+
+```csharp
+// Trong ILoadingUI hoặc logic khác
+var progress = SceneFlowManager.Instance.CurrentProgress;  // 0–1
+var step = SceneFlowManager.Instance.CurrentStep;          // LoadingStep enum
+```
 
 ## API chính
 
 | API | Mô tả |
 |-----|-------|
 | `SceneFlowManager.Instance.StartGame(...)` | Entry point boot |
+| `SceneFlowManager.Instance.CurrentProgress` | Progress hiện tại (0–1) |
+| `SceneFlowManager.Instance.CurrentStep` | Bước đang chạy (LoadingStep) |
 | `SceneFlowManager.Instance.LoadSceneByName(...)` | Load scene tùy ý |
 | `SceneFlowManager.Instance.GetCurrentSceneCancellationToken()` | Token hủy khi đổi scene |
 | `ISceneLifecycle.OnSceneLoaded(payload)` | Callback khi scene load xong |
+| `LoadingPipeline.GetSteps()` | Override để tùy chỉnh pipeline steps |
 
 ## Tối ưu & cấu hình (SceneFlowManager Inspector)
 

@@ -1,16 +1,18 @@
 using System;
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using UnityEngine;
 
 namespace Jis.LoadingSystems
 {
     /// <summary>
-    /// Pipeline boot: Boot → InitSDK → CheckAuth → LoadLocal → SyncCloud → EnterGame.
-    /// onLoadLocalDataAsync, onSyncCloudDataAsync optional (null = no-op).
+    /// Pipeline boot với steps có thể cấu hình. Override GetSteps() để tùy chỉnh theo từng game.
+    /// Mặc định: Boot → InitSDK → CheckAuth → LoadLocal → SyncCloud (nếu login) → EnterGame.
     /// </summary>
     public class LoadingPipeline
     {
-        private readonly SceneFlowManager _flow;
-        private readonly LoadingContext _context;
+        protected readonly SceneFlowManager Flow;
+        protected readonly LoadingContext Context;
         private readonly Func<UniTask> _onLoadLocalData;
         private readonly Func<UniTask> _onSyncCloudData;
 
@@ -20,43 +22,65 @@ namespace Jis.LoadingSystems
             Func<UniTask> onLoadLocalDataAsync = null,
             Func<UniTask> onSyncCloudDataAsync = null)
         {
-            _flow = flow;
-            _context = context;
+            Flow = flow;
+            Context = context;
             _onLoadLocalData = onLoadLocalDataAsync ?? (() => UniTask.CompletedTask);
             _onSyncCloudData = onSyncCloudDataAsync ?? (() => UniTask.CompletedTask);
         }
 
         public async UniTask Execute()
         {
-            if (_context.FromLogin)
+            var steps = GetSteps();
+            foreach (var def in steps)
             {
-                await Step(LoadingStep.EnterGame,
-                    () => _flow.LoadControllerScene(new ScenePayload { IsReload = _context.IsReload, FromLogin = _context.FromLogin }, 0f, 1f), 1f);
-                _flow.HideLoading();
-                return;
+                await RunStep(def);
             }
-
-            await Step(LoadingStep.Boot, () => _flow.LoadStartScene(0f, 0.1f), 0.1f);
-            await Step(LoadingStep.InitSDK, () => _flow.LoadInitSdkScene(0.1f, 0.3f), 0.3f);
-            await Step(LoadingStep.CheckAuth, CheckAuthState, 0.4f);
-            await Step(LoadingStep.LoadLocalData, _onLoadLocalData, 0.5f);
-
-            if (_context.IsLoggedIn)
-                await Step(LoadingStep.LoadCloudData, SyncCloudData, 0.7f);
-            else
-                _flow.UpdateLoadingBar(0.7f);
-
-            await Step(LoadingStep.EnterGame,
-                () => _flow.LoadControllerScene(new ScenePayload { IsReload = _context.IsReload, FromLogin = _context.FromLogin }, 0.7f, 1f), 1f);
-
-            _flow.HideLoading();
+            Flow.HideLoading();
         }
 
-        private async UniTask Step(LoadingStep step, Func<UniTask> task, float targetProgress)
+        /// <summary>
+        /// Override để tùy chỉnh steps theo từng game. Thêm, bớt, đổi thứ tự steps.
+        /// </summary>
+        protected virtual List<PipelineStepDefinition> GetSteps()
         {
-            _flow.SetLoadingStep(step);
-            await task();
-            _flow.UpdateLoadingBar(targetProgress);
+            if (Context.FromLogin)
+            {
+                return new List<PipelineStepDefinition>
+                {
+                    new(LoadingStep.EnterGame,
+                        () => Flow.LoadControllerScene(
+                            new ScenePayload { IsReload = Context.IsReload, FromLogin = Context.FromLogin }, 0f, 1f),
+                        1f)
+                };
+            }
+
+            var steps = new List<PipelineStepDefinition>
+            {
+                new(LoadingStep.Boot, () => Flow.LoadStartScene(0f, 0.1f), 0.1f),
+                new(LoadingStep.InitSDK, () => Flow.LoadInitSdkScene(0.1f, 0.3f), 0.3f),
+                new(LoadingStep.CheckAuth, CheckAuthState, 0.4f),
+                new(LoadingStep.LoadLocalData, _onLoadLocalData, 0.5f)
+            };
+
+            if (Context.IsLoggedIn)
+                steps.Add(new PipelineStepDefinition(LoadingStep.LoadCloudData, SyncCloudData, 0.7f));
+            else
+                Flow.UpdateLoadingBar(0.7f);
+
+            steps.Add(new PipelineStepDefinition(LoadingStep.EnterGame,
+                () => Flow.LoadControllerScene(
+                    new ScenePayload { IsReload = Context.IsReload, FromLogin = Context.FromLogin }, 0.7f, 1f),
+                1f));
+
+            return steps;
+        }
+
+        /// <summary>Chạy một step. Protected để subclass gọi khi thêm logic tùy chỉnh.</summary>
+        protected async UniTask RunStep(PipelineStepDefinition def)
+        {
+            Flow.SetLoadingStep(def.Step);
+            await def.Task();
+            Flow.UpdateLoadingBar(def.EndProgress);
         }
 
         /// <summary>Override trong project để check auth (Firebase, etc.).</summary>
@@ -66,19 +90,17 @@ namespace Jis.LoadingSystems
             return UniTask.CompletedTask;
         }
 
-        protected LoadingContext Context => _context;
-
-        private async UniTask SyncCloudData()
+        protected virtual async UniTask SyncCloudData()
         {
             try
             {
                 await _onSyncCloudData();
-                _context.CloudDataAvailable = true;
+                Context.CloudDataAvailable = true;
             }
             catch (Exception e)
             {
-                UnityEngine.Debug.LogError($"[LoadingSystems] CloudSync error: {e.Message}");
-                _context.CloudDataAvailable = false;
+                Debug.LogError($"[LoadingSystems] CloudSync error: {e.Message}");
+                Context.CloudDataAvailable = false;
             }
         }
     }

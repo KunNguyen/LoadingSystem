@@ -33,6 +33,11 @@ namespace Jis.LoadingSystems
         private bool _sdkInitialized;
         private readonly SceneCancellationManager _cancellation = new();
 
+        /// <summary>Progress hiện tại (0–1). Dùng cho LoadingUI hoặc logic cần biết tiến độ.</summary>
+        public float CurrentProgress { get; private set; }
+        /// <summary>Bước đang chạy. Dùng để hiển thị trạng thái trên LoadingUI.</summary>
+        public LoadingStep CurrentStep { get; private set; }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -150,7 +155,11 @@ namespace Jis.LoadingSystems
             }
         }
 
-        public void SetLoadingStep(LoadingStep step) => LoadingUI?.SetStep(step.ToString());
+        public void SetLoadingStep(LoadingStep step)
+        {
+            CurrentStep = step;
+            LoadingUI?.SetStep(step.ToString());
+        }
 
         private async UniTask ShowLoading()
         {
@@ -165,13 +174,15 @@ namespace Jis.LoadingSystems
                 await UniTask.Yield();
             }
             LoadingUI?.ShowLoadingUI();
+            CurrentStep = LoadingStep.Boot;
             UpdateLoadingBar(0f);
         }
 
         public void UpdateLoadingBar(float progress)
         {
-            LoadingUI?.UpdateLoadingBar(progress);
-            LoadingUI?.SetLoadingText(Mathf.FloorToInt(progress * 100f));
+            CurrentProgress = Mathf.Clamp01(progress);
+            LoadingUI?.UpdateLoadingBar(CurrentProgress);
+            LoadingUI?.SetLoadingText(Mathf.FloorToInt(CurrentProgress * 100f));
         }
 
         public void HideLoading() => LoadingUI?.CloseLoadingUI();
