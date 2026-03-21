@@ -178,10 +178,10 @@ Với options rõ ràng hơn:
 
 ```csharp
 // Vào game từ login (bỏ qua boot)
-SceneFlowManager.Instance.StartGame(StartGameOptions.FromLogin()).Forget();
+SceneFlowManager.Instance.StartGame(StartGameOptions.WhenFromLogin()).Forget();
 
 // Reload game
-SceneFlowManager.Instance.StartGame(StartGameOptions.ReloadGame()).Forget();
+SceneFlowManager.Instance.StartGame(StartGameOptions.WhenReload()).Forget();
 
 // Load/sync data
 SceneFlowManager.Instance.StartGame(new StartGameOptions

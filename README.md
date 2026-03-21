@@ -255,7 +255,7 @@ Assets/
 - `onLoadLocalDataAsync`: callback load dữ liệu local.
 - `onSyncCloudDataAsync`: callback sync dữ liệu cloud.
 
-**API gọn hơn:** `StartGame(StartGameOptions.FromLogin())` hoặc `StartGame(StartGameOptions.ReloadGame())`.
+**API gọn hơn:** `StartGame(StartGameOptions.WhenFromLogin())` hoặc `StartGame(StartGameOptions.WhenReload())`.
 
 ## Tối ưu đã áp dụng
 

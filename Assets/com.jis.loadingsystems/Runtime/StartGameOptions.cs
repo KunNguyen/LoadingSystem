@@ -19,7 +19,7 @@ namespace Jis.LoadingSystems
             FromLogin = false
         };
 
-        public static StartGameOptions FromLogin() => new() { FromLogin = true };
-        public static StartGameOptions ReloadGame() => new() { Reload = true };
+        public static StartGameOptions WhenFromLogin() => new() { FromLogin = true };
+        public static StartGameOptions WhenReload() => new() { Reload = true };
     }
 }

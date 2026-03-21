@@ -65,7 +65,7 @@ namespace Jis.LoadingSystems
             });
         }
 
-        /// <summary>Entry point với options struct. Ví dụ: StartGame(StartGameOptions.FromLogin())</summary>
+        /// <summary>Entry point với options struct. Ví dụ: StartGame(StartGameOptions.WhenFromLogin())</summary>
         public async UniTask StartGame(StartGameOptions options)
         {
             ShowLoading().Forget();
