@@ -65,7 +65,7 @@ Thêm vào `Packages/manifest.json`:
 
 1. Thêm dependency trong `Packages/manifest.json` (block JSON bên dưới).
 2. Tạo `BootstrapScene`, add `SceneFlowManager`.
-3. Implement `ILoadingUI`, gán vào `loadingUIRaw`.
+3. **Nhanh:** Add `StubLoadingUI` vào GameObject, gán vào `loadingUIRaw`. Hoặc implement `ILoadingUI` đầy đủ.
 4. Cấu hình `initSdkScene`, `controllerScene`.
 5. Ở scene đầu, gọi `SceneFlowManager.Instance.StartGame().Forget();`
 6. Trong `ControllerScene`, implement `ISceneLifecycle` để xử lý payload và điều hướng.
@@ -250,7 +250,17 @@ Assets/
 
 ## Ý nghĩa tham số `StartGame`
 
-- `reload`: đánh dấu đây là lượt reload dữ liệu/gameplay.
+- `reload`: đánh dấu reload dữ liệu/gameplay.
 - `fromLogin`: `true` thì vào game ngay, bỏ qua các bước boot khác.
 - `onLoadLocalDataAsync`: callback load dữ liệu local.
 - `onSyncCloudDataAsync`: callback sync dữ liệu cloud.
+
+**API gọn hơn:** `StartGame(StartGameOptions.FromLogin())` hoặc `StartGame(StartGameOptions.ReloadGame())`.
+
+## Tối ưu đã áp dụng
+
+- **StubLoadingUI**: Base class để test nhanh, chỉ cần show/hide GameObject.
+- **LoadingUI timeout**: Không deadlock nếu quên gán; timeout 5s (config) rồi tiếp tục.
+- **sceneLoadDelay**: Cấu hình delay trước load scene (mặc định 0.25s).
+- **StartGameOptions**: Gọi `StartGame(options)` rõ ràng hơn.
+- **Error handling**: `OnSceneLoaded` lỗi không làm crash cả flow; log và tiếp tục.

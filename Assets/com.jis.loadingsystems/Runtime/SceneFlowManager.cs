@@ -21,9 +21,14 @@ namespace Jis.LoadingSystems
         private ILoadingUI LoadingUI => _loadingUI ??= loadingUIRaw as ILoadingUI;
 
         [Header("Scene Names")]
-        [SerializeField] private string startScene = "StartScene";
         [SerializeField] private string initSdkScene = "InitSdkScene";
         [SerializeField] private string controllerScene = "ControllerScene";
+
+        [Header("Timing")]
+        [Tooltip("Delay trước khi bắt đầu load scene (giây). Giảm xuống 0 để tắt.")]
+        [SerializeField] [Min(0f)] private float sceneLoadDelay = 0.25f;
+        [Tooltip("Timeout chờ LoadingUI (giây). 0 = chờ vô hạn.")]
+        [SerializeField] [Min(0f)] private float loadingUIWaitTimeout = 5f;
 
         private bool _sdkInitialized;
         private readonly SceneCancellationManager _cancellation = new();
@@ -51,9 +56,25 @@ namespace Jis.LoadingSystems
             Func<UniTask> onLoadLocalDataAsync = null,
             Func<UniTask> onSyncCloudDataAsync = null)
         {
+            await StartGame(new StartGameOptions
+            {
+                Reload = reload,
+                FromLogin = fromLogin,
+                OnLoadLocalDataAsync = onLoadLocalDataAsync,
+                OnSyncCloudDataAsync = onSyncCloudDataAsync
+            });
+        }
+
+        /// <summary>Entry point với options struct. Ví dụ: StartGame(StartGameOptions.FromLogin())</summary>
+        public async UniTask StartGame(StartGameOptions options)
+        {
             ShowLoading().Forget();
-            var ctx = new LoadingContext { IsReload = reload, FromLogin = fromLogin };
-            var pipeline = CreatePipeline(ctx, onLoadLocalDataAsync, onSyncCloudDataAsync);
+            var ctx = new LoadingContext
+            {
+                IsReload = options.Reload,
+                FromLogin = options.FromLogin
+            };
+            var pipeline = CreatePipeline(ctx, options.OnLoadLocalDataAsync, options.OnSyncCloudDataAsync);
             await pipeline.Execute();
         }
 
@@ -61,8 +82,12 @@ namespace Jis.LoadingSystems
         protected virtual LoadingPipeline CreatePipeline(LoadingContext ctx, Func<UniTask> onLoad, Func<UniTask> onSync)
             => new LoadingPipeline(this, ctx, onLoad, onSync);
 
-        public UniTask LoadStartScene(float startProgress = 0f, float endProgress = 0.1f) => UniTask.CompletedTask;
-        public UniTask LoadBootScene() => UniTask.CompletedTask;
+        /// <summary>Bước Boot (no-op). Override hoặc tạo pipeline riêng nếu cần load scene boot.</summary>
+        public virtual UniTask LoadStartScene(float startProgress = 0f, float endProgress = 0.1f)
+        {
+            UpdateLoadingBar(endProgress);
+            return UniTask.CompletedTask;
+        }
 
         public async UniTask LoadInitSdkScene(float startProgress = 0.1f, float endProgress = 0.3f)
         {
@@ -89,8 +114,9 @@ namespace Jis.LoadingSystems
         private async UniTask LoadScene(string sceneName, object payload, LoadSceneMode mode, float startProgress, float endProgress)
         {
             _cancellation.RegisterSceneToken(sceneName, mode == LoadSceneMode.Single);
-            LoadingUI?.OnChangeScene(0.15f);
-            await UniTask.Delay(TimeSpan.FromSeconds(0.25f));
+            LoadingUI?.OnChangeScene(0.15f, null);
+            if (sceneLoadDelay > 0f)
+                await UniTask.Delay(TimeSpan.FromSeconds(sceneLoadDelay));
 
             var op = SceneManager.LoadSceneAsync(sceneName, mode);
             while (op != null && !op.isDone)
@@ -111,7 +137,16 @@ namespace Jis.LoadingSystems
             foreach (var root in scene.GetRootGameObjects())
             {
                 foreach (var lc in root.GetComponentsInChildren<ISceneLifecycle>(true))
-                    await lc.OnSceneLoaded(payload);
+                {
+                    try
+                    {
+                        await lc.OnSceneLoaded(payload);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError($"[LoadingSystem] OnSceneLoaded error ({lc.GetType().Name}): {e.Message}\n{e.StackTrace}");
+                    }
+                }
             }
         }
 
@@ -119,8 +154,17 @@ namespace Jis.LoadingSystems
 
         private async UniTask ShowLoading()
         {
-            while (LoadingUI == null) await UniTask.Yield();
-            LoadingUI.ShowLoadingUI();
+            var startTime = Time.realtimeSinceStartup;
+            while (LoadingUI == null)
+            {
+                if (loadingUIWaitTimeout > 0f && (Time.realtimeSinceStartup - startTime) >= loadingUIWaitTimeout)
+                {
+                    Debug.LogWarning("[LoadingSystem] LoadingUI chưa gán sau " + loadingUIWaitTimeout + "s. Dùng StubLoadingUI hoặc gán vào Inspector. Tiếp tục mà không có UI.");
+                    break;
+                }
+                await UniTask.Yield();
+            }
+            LoadingUI?.ShowLoadingUI();
             UpdateLoadingBar(0f);
         }
 

@@ -125,7 +125,9 @@ T2: EnterGame ngay:
 
 ### 1. Tạo ILoadingUI adapter
 
-UI loading hiện tại cần implement interface `ILoadingUI`:
+**Cách nhanh:** Thêm component `StubLoadingUI` vào GameObject (chỉ show/hide), gán vào `loadingUIRaw`. Đủ để test flow.
+
+**Tùy chỉnh:** Implement `ILoadingUI` hoặc kế thừa `StubLoadingUI` và override method cần dùng:
 
 ```csharp
 using Jis.LoadingSystems;
@@ -155,30 +157,27 @@ Hoặc implement trực tiếp trên `UIPanelLoading` nếu bạn sửa được
 
 ### 3. Entry point
 
-Gọi từ scene đầu tiên (ví dụ StartSceneController):
+Gọi từ scene đầu tiên:
 
 ```csharp
-using Jis.LoadingSystems;
-using Cysharp.Threading.Tasks;
-
-public class StartSceneController : MonoBehaviour
-{
-    private void Start()
-    {
-        SceneFlowManager.Instance.StartGame().Forget();
-    }
-}
+SceneFlowManager.Instance.StartGame().Forget();
 ```
 
-Với load/sync data:
+Với options rõ ràng hơn:
 
 ```csharp
-SceneFlowManager.Instance.StartGame(
-    reload: false,
-    fromLogin: false,
-    onLoadLocalDataAsync: () => YourDataManager.LoadLocalAsync(),
-    onSyncCloudDataAsync: () => YourCloudManager.SyncAsync()
-).Forget();
+// Vào game từ login (bỏ qua boot)
+SceneFlowManager.Instance.StartGame(StartGameOptions.FromLogin()).Forget();
+
+// Reload game
+SceneFlowManager.Instance.StartGame(StartGameOptions.ReloadGame()).Forget();
+
+// Load/sync data
+SceneFlowManager.Instance.StartGame(new StartGameOptions
+{
+    OnLoadLocalDataAsync = () => YourDataManager.LoadLocalAsync(),
+    OnSyncCloudDataAsync = () => YourCloudManager.SyncAsync()
+}).Forget();
 ```
 
 ### 4. Scene Lifecycle
@@ -256,12 +255,21 @@ await SomeAsyncWork(ct);
 | `SceneFlowManager.Instance.GetCurrentSceneCancellationToken()` | Token hủy khi đổi scene |
 | `ISceneLifecycle.OnSceneLoaded(payload)` | Callback khi scene load xong |
 
-## Giải thích nhanh tham số StartGame
+## Tối ưu & cấu hình (SceneFlowManager Inspector)
 
-- `reload`: đánh dấu đây là lượt reload dữ liệu/gameplay.
-- `fromLogin`: nếu `true`, pipeline vào game ngay (bỏ qua các bước boot khác).
-- `onLoadLocalDataAsync`: callback load dữ liệu local (cache, save local, db local...).
-- `onSyncCloudDataAsync`: callback sync cloud (save cloud/profile/inventory...).
+| Field | Mô tả | Default |
+|-------|-------|---------|
+| `sceneLoadDelay` | Delay trước khi load scene (giây). 0 = tắt | 0.25 |
+| `loadingUIWaitTimeout` | Timeout chờ LoadingUI (giây). 0 = chờ vô hạn | 5 |
+
+Nếu không gán LoadingUI, sau `loadingUIWaitTimeout` giây sẽ log warning và tiếp tục (tránh deadlock).
+
+## Giải thích tham số StartGame
+
+- `reload`: đánh dấu reload dữ liệu/gameplay.
+- `fromLogin`: `true` → vào game ngay (bỏ qua boot).
+- `onLoadLocalDataAsync`: load dữ liệu local.
+- `onSyncCloudDataAsync`: sync cloud.
 
 ## Migration từ project hiện tại
 
