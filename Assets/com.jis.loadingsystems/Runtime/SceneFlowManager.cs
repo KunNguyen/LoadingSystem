@@ -8,6 +8,14 @@ namespace Jis.LoadingSystems
 {
     public class SceneFlowManager : LoadingManager
     {
+        public const string StepKeyInitSdk = "init-sdk";
+        public const string StepKeyLoadInitScene = "load-init-scene";
+        public const string StepKeyLoadLocalData = "load-local-data";
+        public const string StepKeySyncCloudData = "sync-cloud-data";
+        public const string StepKeyFakeDelay = "fake-delay";
+        public const string StepKeyLoadControllerScene = "load-controller-scene";
+        public const string StepKeyPostInit = "post-init";
+
         public static SceneFlowManager Instance { get; private set; }
 
         [Header("UI (Presentation Layer)")]
@@ -84,20 +92,20 @@ namespace Jis.LoadingSystems
             if (!options.FromLogin)
             {
                 pipeline
-                    .AddStep(new InitSDKStep(weight: 0.2f))
+                    .AddStep(new InitSDKStep(weight: 0.2f), StepKeyInitSdk)
                     .AddStep(new LoadSceneStep(
                         initSdkScene,
                         mode: LoadSceneMode.Single,
                         manualActivation: manualSceneActivation,
                         activationDelaySeconds: activationDelaySeconds,
-                        weight: 0.2f))
+                        weight: 0.2f), StepKeyLoadInitScene)
                     .AddStep(new DelegateStep(async ctx =>
                     {
                         if (options.OnLoadLocalDataAsync != null)
                             await options.OnLoadLocalDataAsync();
 
                         ctx.Set("local_data_loaded", true);
-                    }, weight: 0.2f))
+                    }, weight: 0.2f), StepKeyLoadLocalData)
                     .AddStep(new DelegateStep(async ctx =>
                     {
                         if (options.OnSyncCloudDataAsync == null)
@@ -108,20 +116,29 @@ namespace Jis.LoadingSystems
 
                         await options.OnSyncCloudDataAsync();
                         ctx.CloudDataAvailable = true;
-                    }, weight: 0.2f));
+                    }, weight: 0.2f), StepKeySyncCloudData);
             }
 
             pipeline
-                .AddStep(new DelayStep(fakeDelaySeconds, weight: 0.05f))
+                .AddStep(new DelayStep(fakeDelaySeconds, weight: 0.05f), StepKeyFakeDelay)
                 .AddStep(new LoadSceneStep(
                     controllerScene,
                     mode: controllerSceneMode,
                     manualActivation: manualSceneActivation,
                     activationDelaySeconds: activationDelaySeconds,
-                    weight: 0.35f))
-                .AddStep(new PostInitStep(controllerScene, weight: 0.05f));
+                    weight: 0.35f), StepKeyLoadControllerScene)
+                .AddStep(new PostInitStep(controllerScene, weight: 0.05f), StepKeyPostInit);
+
+            CustomizePipeline(pipeline, context, options);
 
             return pipeline;
+        }
+
+        /// <summary>
+        /// Hook to customize pipeline without rewriting all default steps.
+        /// </summary>
+        protected virtual void CustomizePipeline(LoadingPipeline pipeline, LoadingContext context, StartGameOptions options)
+        {
         }
 
         public async UniTask LoadControllerScene(object payload = null)
