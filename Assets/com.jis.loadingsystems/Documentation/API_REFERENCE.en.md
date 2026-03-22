@@ -92,6 +92,12 @@ Empty step list → Start → Progress(1) → Complete.
 | `OnStart` | Pipeline with steps starts. |
 | `OnProgress(float)` | **Smoothed** display progress, usually 0→1. |
 | `OnComplete` | Pipeline finished. |
+| `OnStepStarted(LoadingStepInfo)` | Right **before** each step’s `Execute`. |
+| `OnStepCompleted(LoadingStepInfo)` | After `Execute` returns; still called in `finally` if the step throws. |
+
+`LoadingStepInfo`: `Index` (0-based), `Total`, `StepTypeName` (concrete `ILoadingStep` type name).
+
+**Inside a step:** “start” = top of `Execute`; “end” = when `Execute` returns (or use internal `try/finally`). For **global** per-step hooks, subscribe to `OnStepStarted` / `OnStepCompleted`.
 
 ---
 

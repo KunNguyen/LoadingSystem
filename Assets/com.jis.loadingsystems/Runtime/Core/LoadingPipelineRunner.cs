@@ -36,15 +36,27 @@ namespace Jis.LoadingSystems
             {
                 var totalWeight = CalculateTotalWeight(steps);
                 var accumulatedWeight = 0f;
+                var totalSteps = steps.Count;
 
-                foreach (var step in steps)
+                for (var stepIndex = 0; stepIndex < totalSteps; stepIndex++)
                 {
+                    var step = steps[stepIndex];
+                    var stepInfo = new LoadingStepInfo(stepIndex, totalSteps, step.GetType().Name);
+                    LoadingEvents.RaiseStepStarted(stepInfo);
+
                     var stepWeight = Mathf.Max(step.Weight, 0.0001f);
                     var stepBase = accumulatedWeight / totalWeight;
                     var stepRange = stepWeight / totalWeight;
 
-                    context.BindStepProgressReporter(p => { _realProgress = stepBase + (Mathf.Clamp01(p) * stepRange); });
-                    await step.Execute(context);
+                    try
+                    {
+                        context.BindStepProgressReporter(p => { _realProgress = stepBase + (Mathf.Clamp01(p) * stepRange); });
+                        await step.Execute(context);
+                    }
+                    finally
+                    {
+                        LoadingEvents.RaiseStepCompleted(stepInfo);
+                    }
 
                     accumulatedWeight += stepWeight;
                     _realProgress = Mathf.Clamp01(accumulatedWeight / totalWeight);

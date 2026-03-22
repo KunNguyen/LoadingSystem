@@ -102,8 +102,14 @@ Khi không có step nào: bắn Start → Progress(1) → Complete.
 | `OnStart` | Bắt đầu chạy pipeline (có step). |
 | `OnProgress(float)` | Tiến độ **hiển thị** đã mượt, thường 0→1. |
 | `OnComplete` | Pipeline kết thúc (thành công, sau khi pump progress về 1). |
+| `OnStepStarted(LoadingStepInfo)` | Ngay **trước** `Execute` của từng step. |
+| `OnStepCompleted(LoadingStepInfo)` | Ngay **sau** khi `Execute` return; nếu step **throw**, vẫn gọi trong `finally` (để dọn dẹp). |
+
+`LoadingStepInfo` gồm: `Index` (0-based), `Total`, `StepTypeName` (tên class của step, ví dụ `LoadSceneStep`).
 
 Bạn có thể subscribe thêm từ code khác (analytics, debug overlay) mà không sửa runner.
+
+**Trong một step:** “bắt đầu” = đầu `Execute`; “kết thúc” = khi `Execute` return (hoặc dùng `try/finally` bên trong step). Nếu cần hook **toàn pipeline** theo từng step, dùng `OnStepStarted` / `OnStepCompleted`.
 
 ---
 
