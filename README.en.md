@@ -21,6 +21,9 @@ Add this to `Packages/manifest.json`:
 
 - Vietnamese (default): `Assets/com.jis.loadingsystems/README.md`
 - English: `Assets/com.jis.loadingsystems/README.en.md`
+- **API reference (classes, `Weight`, `LoadingUIPresenter`, …):**
+  - `Assets/com.jis.loadingsystems/Documentation/API_REFERENCE.en.md`
+  - `Assets/com.jis.loadingsystems/Documentation/TAI_LIEU_API.md`
 
 ## Quick Start
 

@@ -4,6 +4,11 @@ SDK-ready Unity loading system with modular, step-based pipeline customization.
 
 Vietnamese default version: `README.md`
 
+## API documentation (classes, `Weight`, `LoadingUIPresenter`, …)
+
+- **English:** `Documentation/API_REFERENCE.en.md`
+- **Vietnamese:** `Documentation/TAI_LIEU_API.md`
+
 ## Fastest way to customize pipeline
 
 You do not need to rebuild the whole flow.  

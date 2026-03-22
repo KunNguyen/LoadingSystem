@@ -1,5 +1,10 @@
 # Hướng dẫn sử dụng JIS Loading System
 
+## Tài liệu API (class, `Weight`, presenter…)
+
+- Tiếng Việt: `TAI_LIEU_API.md` (cùng thư mục Documentation)
+- English: `API_REFERENCE.en.md`
+
 ## 1. Giới thiệu
 
 **JIS Loading Systems** là module Unity tái sử dụng cho hệ thống loading theo từng scene, hỗ trợ:

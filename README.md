@@ -21,6 +21,9 @@ Thêm vào `Packages/manifest.json`:
 
 - Bản tiếng Việt (mặc định): `Assets/com.jis.loadingsystems/README.md`
 - Bản tiếng Anh: `Assets/com.jis.loadingsystems/README.en.md`
+- **Giải thích API / class / `Weight` / `LoadingUIPresenter`:**
+  - `Assets/com.jis.loadingsystems/Documentation/TAI_LIEU_API.md`
+  - `Assets/com.jis.loadingsystems/Documentation/API_REFERENCE.en.md`
 
 ## Bắt đầu nhanh
 

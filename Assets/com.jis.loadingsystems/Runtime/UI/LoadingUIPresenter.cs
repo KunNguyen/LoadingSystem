@@ -2,6 +2,10 @@ using UnityEngine;
 
 namespace Jis.LoadingSystems
 {
+    /// <summary>
+    /// Subscribes to <see cref="LoadingEvents"/> and updates an <see cref="ILoadingUI"/> implementation.
+    /// Keeps loading logic decoupled from concrete UI. See Documentation/TAI_LIEU_API.md.
+    /// </summary>
     public sealed class LoadingUIPresenter : MonoBehaviour
     {
         [SerializeField] private MonoBehaviour loadingUIRaw;
