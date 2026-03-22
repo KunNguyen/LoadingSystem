@@ -225,3 +225,20 @@ Packages/
 - `SceneFlowManager` dùng `DontDestroyOnLoad`, nên đặt trong scene bootstrap và không load lại scene đó.
 - `ILoadingUI` có thể null; SceneFlowManager vẫn chạy nhưng không cập nhật UI.
 - Có thể dùng nhiều pipeline khác nhau (boot, login, reload) bằng cách tạo các class kế thừa `LoadingPipeline`.
+
+### `StubLoadingUI` có bị mất khi chuyển scene không?
+
+Có thể có, nếu bạn đặt sai chỗ:
+
+- `SceneFlowManager` được giữ lại bằng `DontDestroyOnLoad`.
+- `StubLoadingUI` không tự DDOL; nếu nằm trong scene thường (không thuộc root DDOL), khi load scene `Single` nó sẽ bị destroy.
+- Đặt `StubLoadingUI` làm child cùng root với `SceneFlowManager` trong bootstrap scene để giữ xuyên scene.
+- Với `LoadSceneMode.Additive`, object chưa mất ngay; chỉ mất khi scene chứa nó bị unload.
+
+### Checklist tránh mất Loading UI
+
+1. Tạo `BootstrapRoot` trong `BootstrapScene`.
+2. Gắn `SceneFlowManager` vào `BootstrapRoot`.
+3. Tạo `LoadingUI` (gắn `StubLoadingUI` hoặc adapter thật) dưới `BootstrapRoot`.
+4. Gán đúng `loadingUIRaw` trong Inspector.
+5. Đảm bảo scene khác không có `SceneFlowManager` bản sao.

@@ -273,6 +273,23 @@ Assets/
 - `ILoadingUI` có thể null; flow vẫn chạy nhưng không cập nhật UI.
 - Có thể tạo nhiều pipeline khác nhau (boot, login, reload) bằng cách kế thừa `LoadingPipeline`.
 
+### StubLoadingUI có bị mất khi chuyển scene không?
+
+Có thể **bị mất**, tùy vị trí đặt object:
+
+- `SceneFlowManager` có `DontDestroyOnLoad(gameObject)`, nên chỉ object manager (và con của nó) được giữ khi load scene `Single`.
+- `StubLoadingUI` không tự gọi `DontDestroyOnLoad`, nên nếu nằm trong scene thường và không phải con của object DDOL thì sẽ bị destroy khi chuyển scene `Single`.
+- Nếu `StubLoadingUI` là child của root chứa `SceneFlowManager` trong bootstrap scene, nó sẽ sống xuyên scene.
+- Với load `Additive`, object ở scene cũ chỉ mất khi scene đó bị unload.
+
+Khuyến nghị setup an toàn:
+
+1. Tạo `BootstrapRoot` trong `BootstrapScene`.
+2. Gắn `SceneFlowManager` lên `BootstrapRoot`.
+3. Tạo `LoadingUI` (gắn `StubLoadingUI` hoặc adapter thật) làm child của `BootstrapRoot`.
+4. Kéo component này vào `loadingUIRaw`.
+5. Chỉ gọi `StartGame()` sau khi `loadingUIRaw` đã gán đúng.
+
 ## Ý nghĩa tham số `StartGame`
 
 - `reload`: đánh dấu reload dữ liệu/gameplay.

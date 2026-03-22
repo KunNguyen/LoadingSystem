@@ -319,6 +319,23 @@ var step = SceneFlowManager.Instance.CurrentStep;          // LoadingStep enum
 
 Nếu không gán LoadingUI, sau `loadingUIWaitTimeout` giây sẽ log warning và tiếp tục (tránh deadlock).
 
+## StubLoadingUI và vòng đời object khi đổi scene
+
+`StubLoadingUI` **có thể bị mất** khi chuyển scene, tùy cách đặt object:
+
+- `SceneFlowManager` gọi `DontDestroyOnLoad(gameObject)`, nên object chứa manager (và child của nó) sẽ được giữ lại.
+- `StubLoadingUI` không tự DDOL; nếu đặt trong scene thường, không nằm dưới root DDOL, nó sẽ bị destroy khi load scene `Single`.
+- Nếu đặt `StubLoadingUI` dưới cùng root bootstrap với `SceneFlowManager`, nó sẽ sống xuyên scene.
+- Nếu load `Additive`, object chỉ mất khi scene chứa nó bị unload.
+
+### Setup khuyến nghị (an toàn)
+
+1. Tạo root `BootstrapRoot` trong bootstrap scene.
+2. Gắn `SceneFlowManager` vào `BootstrapRoot`.
+3. Tạo `LoadingUI` (gắn `StubLoadingUI` hoặc UI adapter thật) làm child của `BootstrapRoot`.
+4. Gán component vào `loadingUIRaw` trong Inspector.
+5. Không tạo thêm bản sao `SceneFlowManager` ở các scene khác (tránh duplicate rồi bị destroy).
+
 ## Giải thích tham số StartGame
 
 - `reload`: đánh dấu reload dữ liệu/gameplay.
