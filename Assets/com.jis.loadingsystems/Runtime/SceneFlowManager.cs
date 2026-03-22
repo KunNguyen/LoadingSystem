@@ -6,55 +6,45 @@ using UnityEngine.SceneManagement;
 
 namespace Jis.LoadingSystems
 {
-    /// <summary>
-    /// Quản lý flow load scene, lifecycle và cancellation.
-    /// Thêm vào GameObject trong bootstrap scene, gán ILoadingUI qua Inspector hoặc code.
-    /// </summary>
-    public class SceneFlowManager : MonoBehaviour
+    public class SceneFlowManager : LoadingManager
     {
         public static SceneFlowManager Instance { get; private set; }
 
-        [Header("Loading UI")]
+        [Header("UI (Presentation Layer)")]
         [SerializeField] private MonoBehaviour loadingUIRaw;
+        [SerializeField] private LoadingUIPresenter loadingUIPresenter;
 
-        private ILoadingUI _loadingUI;
-        private ILoadingUI LoadingUI => _loadingUI ??= loadingUIRaw as ILoadingUI;
-
-        [Header("Scene Names")]
+        [Header("Pipeline Scenes")]
         [SerializeField] private string initSdkScene = "InitSdkScene";
         [SerializeField] private string controllerScene = "ControllerScene";
 
-        [Header("Timing")]
-        [Tooltip("Delay trước khi bắt đầu load scene (giây). Giảm xuống 0 để tắt.")]
-        [SerializeField] [Min(0f)] private float sceneLoadDelay = 0.25f;
-        [Tooltip("Timeout chờ LoadingUI (giây). 0 = chờ vô hạn.")]
-        [SerializeField] [Min(0f)] private float loadingUIWaitTimeout = 5f;
+        [Header("Scene Loading")]
+        [SerializeField] private LoadSceneMode controllerSceneMode = LoadSceneMode.Single;
+        [SerializeField] private bool manualSceneActivation = true;
+        [SerializeField] [Min(0f)] private float activationDelaySeconds = 0.15f;
+        [SerializeField] [Min(0f)] private float fakeDelaySeconds = 0.2f;
 
-        private bool _sdkInitialized;
         private readonly SceneCancellationManager _cancellation = new();
 
-        /// <summary>Progress hiện tại (0–1). Dùng cho LoadingUI hoặc logic cần biết tiến độ.</summary>
-        public float CurrentProgress { get; private set; }
-        /// <summary>Bước đang chạy. Dùng để hiển thị trạng thái trên LoadingUI.</summary>
-        public LoadingStep CurrentStep { get; private set; }
-
-        private void Awake()
+        protected override void Awake()
         {
             if (Instance != null && Instance != this)
             {
                 Destroy(gameObject);
                 return;
             }
+
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            base.Awake();
+            TryBindPresenter();
         }
 
-        private void OnDestroy()
+        protected override void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            base.OnDestroy();
         }
 
-        /// <summary>Entry point: App launch, Login, Logout, Switch account.</summary>
         public async UniTask StartGame(
             bool reload = false,
             bool fromLogin = false,
@@ -70,121 +60,139 @@ namespace Jis.LoadingSystems
             });
         }
 
-        /// <summary>Entry point với options struct. Ví dụ: StartGame(StartGameOptions.WhenFromLogin())</summary>
         public async UniTask StartGame(StartGameOptions options)
         {
-            ShowLoading().Forget();
             var ctx = new LoadingContext
             {
                 IsReload = options.Reload,
-                FromLogin = options.FromLogin
+                FromLogin = options.FromLogin,
+                Payload = new ScenePayload
+                {
+                    IsReload = options.Reload,
+                    FromLogin = options.FromLogin
+                }
             };
-            var pipeline = CreatePipeline(ctx, options.OnLoadLocalDataAsync, options.OnSyncCloudDataAsync);
-            await pipeline.Execute();
+
+            var pipeline = BuildPipeline(ctx, options);
+            await RunPipeline(pipeline.Steps, ctx);
         }
 
-        /// <summary>Override để dùng custom pipeline (ví dụ tích hợp Firebase Auth).</summary>
-        protected virtual LoadingPipeline CreatePipeline(LoadingContext ctx, Func<UniTask> onLoad, Func<UniTask> onSync)
-            => new LoadingPipeline(this, ctx, onLoad, onSync);
-
-        /// <summary>Bước Boot (no-op). Override hoặc tạo pipeline riêng nếu cần load scene boot.</summary>
-        public virtual UniTask LoadStartScene(float startProgress = 0f, float endProgress = 0.1f)
+        protected virtual LoadingPipeline BuildPipeline(LoadingContext context, StartGameOptions options)
         {
-            UpdateLoadingBar(endProgress);
-            return UniTask.CompletedTask;
+            var pipeline = new LoadingPipeline();
+
+            if (!options.FromLogin)
+            {
+                pipeline
+                    .AddStep(new InitSDKStep(weight: 0.2f))
+                    .AddStep(new LoadSceneStep(
+                        initSdkScene,
+                        mode: LoadSceneMode.Single,
+                        manualActivation: manualSceneActivation,
+                        activationDelaySeconds: activationDelaySeconds,
+                        weight: 0.2f))
+                    .AddStep(new DelegateStep(async ctx =>
+                    {
+                        if (options.OnLoadLocalDataAsync != null)
+                            await options.OnLoadLocalDataAsync();
+
+                        ctx.Set("local_data_loaded", true);
+                    }, weight: 0.2f))
+                    .AddStep(new DelegateStep(async ctx =>
+                    {
+                        if (options.OnSyncCloudDataAsync == null)
+                        {
+                            ctx.CloudDataAvailable = false;
+                            return;
+                        }
+
+                        await options.OnSyncCloudDataAsync();
+                        ctx.CloudDataAvailable = true;
+                    }, weight: 0.2f));
+            }
+
+            pipeline
+                .AddStep(new DelayStep(fakeDelaySeconds, weight: 0.05f))
+                .AddStep(new LoadSceneStep(
+                    controllerScene,
+                    mode: controllerSceneMode,
+                    manualActivation: manualSceneActivation,
+                    activationDelaySeconds: activationDelaySeconds,
+                    weight: 0.35f))
+                .AddStep(new PostInitStep(controllerScene, weight: 0.05f));
+
+            return pipeline;
         }
 
-        public async UniTask LoadInitSdkScene(float startProgress = 0.1f, float endProgress = 0.3f)
+        public async UniTask LoadControllerScene(object payload = null)
         {
-            if (_sdkInitialized) { UpdateLoadingBar(endProgress); return; }
-            await LoadScene(initSdkScene, null, LoadSceneMode.Single, startProgress, endProgress);
-            _sdkInitialized = true;
+            var context = new LoadingContext { Payload = payload };
+            var pipeline = new LoadingPipeline()
+                .AddStep(new LoadSceneStep(controllerScene, controllerSceneMode, manualSceneActivation, activationDelaySeconds, 0.9f))
+                .AddStep(new PostInitStep(controllerScene, 0.1f));
+
+            await RunPipeline(pipeline.Steps, context);
         }
 
-        public async UniTask LoadControllerScene(object payload = null, float startProgress = 0.7f, float endProgress = 1f)
+        public async UniTask LoadSceneByName(
+            string sceneName,
+            object payload = null,
+            LoadSceneMode mode = LoadSceneMode.Single,
+            bool useManualActivation = true,
+            float activateDelay = 0f)
         {
-            await LoadScene(controllerScene, payload, LoadSceneMode.Single, startProgress, endProgress);
+            _cancellation.RegisterSceneToken(sceneName, mode == LoadSceneMode.Single);
+
+            var context = new LoadingContext
+            {
+                Payload = payload,
+                CancellationToken = _cancellation.GetSceneToken(sceneName)
+            };
+
+            var pipeline = new LoadingPipeline()
+                .AddStep(new LoadSceneStep(sceneName, mode, useManualActivation, activateDelay, 0.9f))
+                .AddStep(new PostInitStep(sceneName, 0.1f));
+
+            await RunPipeline(pipeline.Steps, context);
         }
 
-        public async UniTask LoadSceneByName(string sceneName, object payload = null, LoadSceneMode mode = LoadSceneMode.Single, float startProgress = 0f, float endProgress = 1f)
+        public UniTask LoadSceneByName(
+            string sceneName,
+            object payload,
+            LoadSceneMode mode,
+            float startProgress,
+            float endProgress)
         {
-            await LoadScene(sceneName, payload, mode, startProgress, endProgress);
+            return LoadSceneByName(sceneName, payload, mode, useManualActivation: true, activateDelay: 0f);
         }
 
         public CancellationToken GetSceneCancellationToken(string sceneName) => _cancellation.GetSceneToken(sceneName);
         public CancellationToken GetCurrentSceneCancellationToken() => _cancellation.GetCurrentSceneToken();
 
-        public void SetLoadingUI(ILoadingUI ui) => _loadingUI = ui;
-
-        private async UniTask LoadScene(string sceneName, object payload, LoadSceneMode mode, float startProgress, float endProgress)
+        public void SetLoadingUI(ILoadingUI ui)
         {
-            _cancellation.RegisterSceneToken(sceneName, mode == LoadSceneMode.Single);
-            LoadingUI?.OnChangeScene(0.15f, null);
-            if (sceneLoadDelay > 0f)
-                await UniTask.Delay(TimeSpan.FromSeconds(sceneLoadDelay));
-
-            var op = SceneManager.LoadSceneAsync(sceneName, mode);
-            while (op != null && !op.isDone)
+            if (loadingUIPresenter == null)
             {
-                var p = Mathf.Lerp(startProgress, endProgress, Mathf.Clamp01(op.progress / 0.9f));
-                UpdateLoadingBar(p);
-                await UniTask.Yield();
+                loadingUIPresenter = GetComponent<LoadingUIPresenter>();
+                if (loadingUIPresenter == null)
+                    loadingUIPresenter = gameObject.AddComponent<LoadingUIPresenter>();
             }
-            UpdateLoadingBar(endProgress);
-            await UniTask.NextFrame();
-            await NotifySceneLoaded(sceneName, payload);
+
+            loadingUIPresenter.SetLoadingUI(ui);
         }
 
-        private async UniTask NotifySceneLoaded(string sceneName, object payload)
+        private void TryBindPresenter()
         {
-            var scene = SceneManager.GetSceneByName(sceneName);
-            if (!scene.IsValid()) return;
-            foreach (var root in scene.GetRootGameObjects())
+            if (loadingUIPresenter == null)
+                loadingUIPresenter = GetComponent<LoadingUIPresenter>();
+
+            if (loadingUIPresenter == null)
+                loadingUIPresenter = gameObject.AddComponent<LoadingUIPresenter>();
+
+            if (loadingUIRaw is ILoadingUI ui)
             {
-                foreach (var lc in root.GetComponentsInChildren<ISceneLifecycle>(true))
-                {
-                    try
-                    {
-                        await lc.OnSceneLoaded(payload);
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogError($"[LoadingSystem] OnSceneLoaded error ({lc.GetType().Name}): {e.Message}\n{e.StackTrace}");
-                    }
-                }
+                loadingUIPresenter.SetLoadingUI(ui);
             }
         }
-
-        public void SetLoadingStep(LoadingStep step)
-        {
-            CurrentStep = step;
-            LoadingUI?.SetStep(step.ToString());
-        }
-
-        private async UniTask ShowLoading()
-        {
-            var startTime = Time.realtimeSinceStartup;
-            while (LoadingUI == null)
-            {
-                if (loadingUIWaitTimeout > 0f && (Time.realtimeSinceStartup - startTime) >= loadingUIWaitTimeout)
-                {
-                    Debug.LogWarning("[LoadingSystem] LoadingUI chưa gán sau " + loadingUIWaitTimeout + "s. Dùng StubLoadingUI hoặc gán vào Inspector. Tiếp tục mà không có UI.");
-                    break;
-                }
-                await UniTask.Yield();
-            }
-            LoadingUI?.ShowLoadingUI();
-            CurrentStep = LoadingStep.Boot;
-            UpdateLoadingBar(0f);
-        }
-
-        public void UpdateLoadingBar(float progress)
-        {
-            CurrentProgress = Mathf.Clamp01(progress);
-            LoadingUI?.UpdateLoadingBar(CurrentProgress);
-            LoadingUI?.SetLoadingText(Mathf.FloorToInt(CurrentProgress * 100f));
-        }
-
-        public void HideLoading() => LoadingUI?.CloseLoadingUI();
     }
 }

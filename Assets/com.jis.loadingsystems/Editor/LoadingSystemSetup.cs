@@ -104,15 +104,17 @@ namespace Jis.LoadingSystems.Editor
             var scenesPath = baseFolder + "/Scenes";
             EditorUtility.DisplayProgressBar("JIS Loading System", "Tạo BootstrapScene...", 0.2f);
 
-            // BootstrapScene: SceneFlowManager + StubLoadingUI (đã link)
+            // BootstrapScene: BootstrapRoot (DDOL) + SceneFlowManager + StubLoadingUI (đã link)
             var bootstrapPath = scenesPath + "/BootstrapScene.unity";
             var bootScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            var flowGo = new GameObject("SceneFlowManager");
-            var flow = flowGo.AddComponent<SceneFlowManager>();
+            var bootstrapRoot = new GameObject("BootstrapRoot");
+            var flow = bootstrapRoot.AddComponent<SceneFlowManager>();
+            bootstrapRoot.AddComponent<BootstrapController>();
 
             var loadingGo = new GameObject("LoadingUI");
             var loadingUI = loadingGo.AddComponent<StubLoadingUI>();
+            loadingGo.transform.SetParent(bootstrapRoot.transform, false);
 
             // Gán loadingUI vào flow qua SerializedObject
             var so = new SerializedObject(flow);
@@ -120,9 +122,6 @@ namespace Jis.LoadingSystems.Editor
             so.FindProperty("initSdkScene").stringValue = "InitSdkScene";
             so.FindProperty("controllerScene").stringValue = "ControllerScene";
             so.ApplyModifiedPropertiesWithoutUndo();
-
-            // BootstrapController gọi StartGame
-            flowGo.AddComponent<BootstrapController>();
 
             EditorSceneManager.SaveScene(bootScene, bootstrapPath);
 
