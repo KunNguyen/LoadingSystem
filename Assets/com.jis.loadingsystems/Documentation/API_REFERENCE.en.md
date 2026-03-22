@@ -146,6 +146,14 @@ Empty step list → Start → Progress(1) → Complete.
 | `LoadSceneStep` | Async scene load, optional manual activation. |
 | `PostInitStep` | Calls `ISceneLifecycle.OnSceneLoaded` in loaded scene. |
 | `DelegateStep` | Wraps `Func<LoadingContext, UniTask>` as a step. |
+| `StepWithCallbacks` | Wraps any `ILoadingStep` with optional `onStarted` / `onCompleted` (per-step only). |
+
+### Callbacks for **one** inserted step — where?
+
+1. **`StepWithCallbacks`** — pass delegates when you build the pipeline (e.g. in `CustomizePipeline`).
+2. **Inside your custom step’s `Execute`** — start at top; use `try/finally` for guaranteed “complete”.
+3. **`DelegateStep` lambda** — call callbacks at start / in `finally` around your async work.
+4. **`LoadingEvents.OnStepStarted` / `OnStepCompleted`** — global for every step; filter by `StepTypeName` / `Index` if needed.
 
 ---
 

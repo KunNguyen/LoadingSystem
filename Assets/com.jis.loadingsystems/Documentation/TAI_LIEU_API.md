@@ -166,6 +166,31 @@ Bạn có thể subscribe thêm từ code khác (analytics, debug overlay) mà k
 | `LoadSceneStep` | `LoadSceneAsync`, hỗ trợ manual activation, `Single`/`Additive`. |
 | `PostInitStep` | Sau khi scene load, gọi `ISceneLifecycle.OnSceneLoaded` trên root objects trong scene đích. |
 | `DelegateStep` | Gói `Func<LoadingContext, UniTask>` thành một step có `Weight`. |
+| `StepWithCallbacks` | Bọc một `ILoadingStep` khác + `onStarted` / `onCompleted` (chỉ cho step đó). |
+
+### Callback chỉ cho **một** step vừa chèn — đặt ở đâu?
+
+1. **`StepWithCallbacks` (khuyên dùng khi chèn trong `CustomizePipeline`)**  
+   Truyền delegate ngay lúc tạo step:
+
+   ```csharp
+   pipeline.InsertBefore(
+       StepKeyLoadLocalData,
+       new StepWithCallbacks(
+           inner: new MyCustomStep(),
+           onStarted: ctx => { /* bắt đầu step này */ },
+           onCompleted: ctx => { /* kết thúc step này (luôn gọi, kể cả lỗi) */ }),
+       key: "my-step");
+   ```
+
+2. **Trong `Execute` của class step riêng**  
+   Code đầu hàm = start, `try/finally` = đảm bảo “complete”.
+
+3. **`DelegateStep`**  
+   Trong lambda: gọi callback ở đầu, `try/finally` ở cuối, rồi `await` logic.
+
+4. **`LoadingEvents.OnStepStarted` / `OnStepCompleted`**  
+   Áp dụng cho **mọi** step; muốn lọc một step thì so `StepTypeName` hoặc `Index` (dễ sai nếu trùng type hoặc đổi thứ tự).
 
 ---
 
