@@ -171,6 +171,27 @@ Boot options and small payload attached to `LoadingContext.Payload`.
 
 ---
 
+## Troubleshooting: progress never updates
+
+### 1) Wrong `Loading UI Raw` reference (most common)
+
+**`Loading UI Raw` on `SceneFlowManager` must reference a component that implements `ILoadingUI`** (e.g. your `UILoadingAdapter`, `StubLoadingUI`).
+
+- **Wrong:** assigning `UILoading (Image)` or `Canvas` — they are not `ILoadingUI` → presenter has no UI → `HandleProgress` returns immediately.
+- **Right:** pick the GameObject, then choose the **`UILoadingAdapter`** component in the object picker, not `Image`.
+
+Newer package versions: if you assigned another component on the **same** GameObject (e.g. `Image` while `UILoadingAdapter` is on the same object), runtime will try `GetComponent<ILoadingUI>()` on that object. If it still fails, check the Console for an error with fix instructions.
+
+### 2) `Loading UI Presenter` is None
+
+That is OK: `SceneFlowManager` adds `LoadingUIPresenter` on the manager GameObject at runtime. Fix the `Loading UI Raw` reference first.
+
+### 3) Slider range
+
+Pipeline sends progress in **0→1**. Default Unity Slider 0–1 matches. If you changed min/max, scale in `UpdateLoadingBar`.
+
+---
+
 ## License
 
 MIT

@@ -206,10 +206,40 @@ namespace Jis.LoadingSystems
             if (loadingUIPresenter == null)
                 loadingUIPresenter = gameObject.AddComponent<LoadingUIPresenter>();
 
-            if (loadingUIRaw is ILoadingUI ui)
+            var ui = ResolveLoadingUI();
+            if (ui != null)
             {
                 loadingUIPresenter.SetLoadingUI(ui);
+                return;
             }
+
+            if (loadingUIRaw != null)
+            {
+                Debug.LogError(
+                    "[JIS Loading System] Field \"Loading UI Raw\" must reference a component that implements ILoadingUI " +
+                    "(ví dụ UILoadingAdapter / StubLoadingUI), không phải Image hay Canvas.\n" +
+                    $"Hiện đang gán: {loadingUIRaw.GetType().Name} trên '{loadingUIRaw.gameObject.name}'. " +
+                    "Hãy kéo component **UILoadingAdapter** (hoặc script implement ILoadingUI) vào slot đó.",
+                    this);
+            }
+        }
+
+        /// <summary>
+        /// Inspector often assigns the wrong component (e.g. Image). If so, try ILoadingUI on the same GameObject.
+        /// </summary>
+        private ILoadingUI ResolveLoadingUI()
+        {
+            if (loadingUIRaw == null)
+                return null;
+
+            if (loadingUIRaw is ILoadingUI direct)
+                return direct;
+
+            var onSameObject = loadingUIRaw.GetComponent<ILoadingUI>();
+            if (onSameObject != null)
+                return onSameObject;
+
+            return null;
         }
     }
 }

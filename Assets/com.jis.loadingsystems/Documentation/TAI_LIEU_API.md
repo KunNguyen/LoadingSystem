@@ -192,6 +192,27 @@ Bạn có thể subscribe thêm từ code khác (analytics, debug overlay) mà k
 
 ---
 
+## Xử lý sự cố: progress / text không đổi
+
+### 1) Gán nhầm `Loading UI Raw` (hay gặp nhất)
+
+Trường **`Loading UI Raw`** trên `SceneFlowManager` phải trỏ tới component **implement `ILoadingUI`** (ví dụ `UILoadingAdapter`, `StubLoadingUI`).
+
+- **Sai:** kéo `UILoading (Image)` hoặc `Canvas` — những component này **không** phải `ILoadingUI` → `LoadingUIPresenter` coi như không có UI → `HandleProgress` return sớm, **không cập nhật Slider/Text**.
+- **Đúng:** chọn object `UILoading`, ở ô reference click **selector**, chọn script **`UILoadingAdapter`** (hoặc đúng script implement `ILoadingUI`), không chọn `Image`.
+
+Từ bản code mới: nếu bạn gán nhầm component cùng GameObject (ví dụ gán `Image` nhưng cùng object có `UILoadingAdapter`), runtime sẽ **tự tìm** `ILoadingUI` trên cùng GameObject. Nếu vẫn lỗi, Console sẽ có log hướng dẫn.
+
+### 2) `Loading UI Presenter` để `None`
+
+Không sao: `SceneFlowManager` sẽ **tự thêm** `LoadingUIPresenter` lên cùng GameObject với manager khi chạy. Bạn chỉ cần gán đúng `Loading UI Raw` như trên.
+
+### 3) Slider / giá trị
+
+Hệ thống gửi progress **0→1**. Slider Unity mặc định min/max 0–1 là khớp. Nếu bạn đổi min/max Slider, cần scale lại trong `UpdateLoadingBar`.
+
+---
+
 ## License
 
 MIT
