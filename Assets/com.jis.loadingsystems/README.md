@@ -4,6 +4,320 @@ Hệ thống loading dạng SDK cho Unity, hỗ trợ pipeline theo step, UI tá
 
 English version: `README.en.md`
 
+## Tùy chỉnh pipeline nhanh nhất
+
+Không cần viết lại toàn bộ flow. Chỉ cần kế thừa `SceneFlowManager` và override `CustomizePipeline(...)`.
+
+### Key mặc định của các step
+
+- `SceneFlowManager.StepKeyInitSdk`
+- `SceneFlowManager.StepKeyLoadInitScene`
+- `SceneFlowManager.StepKeyLoadLocalData`
+- `SceneFlowManager.StepKeySyncCloudData`
+- `SceneFlowManager.StepKeyFakeDelay`
+- `SceneFlowManager.StepKeyLoadControllerScene`
+- `SceneFlowManager.StepKeyPostInit`
+
+### API chỉnh pipeline
+
+- `AddStep(step, key)`
+- `InsertBefore(anchorKey, step, key)`
+- `InsertAfter(anchorKey, step, key)`
+- `ReplaceStep(key, newStep, newKey)`
+- `RemoveStep(key)`
+
+### Ví dụ dùng ngay
+
+File mẫu có sẵn trong package:
+
+- `Runtime/Examples/MySceneFlowManagerExample.cs`
+
+Trong `BootstrapScene`, thay component `SceneFlowManager` bằng `MySceneFlowManagerExample`.
+
+```csharp
+using Jis.LoadingSystems;
+using UnityEngine;
+
+public class MySceneFlowManager : SceneFlowManager
+{
+    protected override void CustomizePipeline(
+        LoadingPipeline pipeline,
+        LoadingContext context,
+        StartGameOptions options)
+    {
+        pipeline.InsertBefore(
+            StepKeyLoadLocalData,
+            new FetchRemoteConfigStepExample(),
+            key: "fetch-remote-config");
+
+        pipeline.ReplaceStep(
+            StepKeyFakeDelay,
+            new DelayStep(0.6f, 0.08f));
+
+        if (Debug.isDebugBuild)
+            pipeline.RemoveStep(StepKeySyncCloudData);
+
+        pipeline.InsertAfter(
+            StepKeyLoadControllerScene,
+            new PostWarmupStepExample(),
+            key: "post-warmup");
+    }
+}
+```
+# JIS Loading System (Tiếng Việt)
+
+Hệ thống loading dạng SDK cho Unity, hỗ trợ pipeline theo step, UI tách rời bằng event, và tiến độ mượt.
+
+English version: `README.en.md`
+
+## 1) Yêu cầu
+
+- Unity `2022.3+`
+- [UniTask](https://github.com/Cysharp/UniTask)
+
+## 2) Cài đặt qua UPM
+
+Thêm vào `Packages/manifest.json`:
+
+```json
+{
+  "dependencies": {
+    "com.jis.loadingsystem": "https://github.com/KunNguyen/LoadingSystem.git?path=Assets/com.jis.loadingsystems",
+    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask"
+  }
+}
+```
+
+## 3) Kiến trúc Runtime
+
+```text
+Abstractions/
+  ILoadingStep
+  ILoadingUI
+  ISceneLifecycle
+
+Core/
+  LoadingManager
+  LoadingPipelineRunner
+  LoadingContext
+  LoadingEvents
+
+Steps/
+  InitSDKStep
+  DelayStep
+  LoadSceneStep
+  PostInitStep
+  DelegateStep
+
+UI/
+  LoadingUIPresenter
+  StubLoadingUI
+
+Utils/
+  ProgressSmoother
+```
+
+## 4) Setup nhanh bằng Template (khuyên dùng)
+
+Menu:
+
+- `Tools > JIS Loading System > Setup Template (1-click)`
+- hoặc `Tools > JIS Loading System > Setup Template`
+- hoặc `Assets > Create > JIS Loading System > Setup Template`
+
+Template sẽ tạo:
+
+- `BootstrapScene`, `InitSdkScene`, `ControllerScene`, `GameplayScene`
+- `BootstrapRoot` gồm:
+  - `SceneFlowManager`
+  - `BootstrapController`
+  - child `LoadingUI` + `StubLoadingUI` (đã bind `loadingUIRaw`)
+- script mẫu:
+  - `InitSdkSceneController_Example.cs`
+  - `ControllerSceneController_Example.cs`
+
+## 5) Tích hợp thủ công
+
+1. Trong `BootstrapScene`, tạo `BootstrapRoot`.
+2. Add `SceneFlowManager` + `BootstrapController`.
+3. Tạo child `LoadingUI`, add `StubLoadingUI` hoặc adapter UI của bạn.
+4. Gán component đó vào `SceneFlowManager.loadingUIRaw`.
+5. Đảm bảo `InitSdkScene`, `ControllerScene` có trong Build Settings.
+
+## 6) Cách chạy flow cơ bản
+
+```csharp
+using Cysharp.Threading.Tasks;
+using Jis.LoadingSystems;
+using UnityEngine;
+
+public class StartSceneController : MonoBehaviour
+{
+    private void Start()
+    {
+        SceneFlowManager.Instance.StartGame(new StartGameOptions
+        {
+            Reload = false,
+            FromLogin = false,
+            OnLoadLocalDataAsync = LoadLocalDataAsync,
+            OnSyncCloudDataAsync = SyncCloudDataAsync
+        }).Forget();
+    }
+
+    private static async UniTask LoadLocalDataAsync() => await UniTask.Delay(300);
+    private static async UniTask SyncCloudDataAsync() => await UniTask.Delay(500);
+}
+```
+
+## 7) Tùy chỉnh Pipeline dễ nhất (khuyến nghị)
+
+Bạn **không cần viết lại toàn bộ pipeline**.  
+Chỉ cần kế thừa `SceneFlowManager` và override `CustomizePipeline(...)`.
+
+SDK đã gắn sẵn key cho các step mặc định:
+
+- `SceneFlowManager.StepKeyInitSdk`
+- `SceneFlowManager.StepKeyLoadInitScene`
+- `SceneFlowManager.StepKeyLoadLocalData`
+- `SceneFlowManager.StepKeySyncCloudData`
+- `SceneFlowManager.StepKeyFakeDelay`
+- `SceneFlowManager.StepKeyLoadControllerScene`
+- `SceneFlowManager.StepKeyPostInit`
+
+`LoadingPipeline` hỗ trợ sẵn:
+
+- `AddStep(step, key)`
+- `InsertBefore(anchorKey, step, key)`
+- `InsertAfter(anchorKey, step, key)`
+- `ReplaceStep(key, newStep, newKey)`
+- `RemoveStep(key)`
+
+### Có sẵn ví dụ dùng ngay
+
+Bạn có thể dùng trực tiếp:
+
+- `Runtime/Examples/MySceneFlowManagerExample.cs`
+
+File này đã gồm:
+
+- `MySceneFlowManagerExample` (override `CustomizePipeline`)
+- `FetchRemoteConfigStepExample`
+- `PostWarmupStepExample`
+
+Trong scene, thay `SceneFlowManager` bằng `MySceneFlowManagerExample` để test ngay.
+
+Ví dụ:
+
+```csharp
+using Jis.LoadingSystems;
+using UnityEngine;
+
+public class MySceneFlowManager : SceneFlowManager
+{
+    protected override void CustomizePipeline(
+        LoadingPipeline pipeline,
+        LoadingContext context,
+        StartGameOptions options)
+    {
+        pipeline.InsertBefore(
+            StepKeyLoadLocalData,
+            new FetchRemoteConfigStepExample(),
+            key: "fetch-remote-config");
+
+        pipeline.ReplaceStep(
+            StepKeyFakeDelay,
+            new DelayStep(durationSeconds: 0.6f, weight: 0.08f));
+
+        if (Debug.isDebugBuild)
+            pipeline.RemoveStep(StepKeySyncCloudData);
+
+        pipeline.InsertAfter(
+            StepKeyLoadControllerScene,
+            new PostWarmupStepExample(),
+            key: "post-warmup");
+    }
+}
+```
+
+## 8) Ví dụ tạo step mới
+
+```csharp
+using Cysharp.Threading.Tasks;
+using Jis.LoadingSystems;
+
+public sealed class FetchRemoteConfigStep : ILoadingStep
+{
+    public float Weight => 0.2f;
+
+    public async UniTask Execute(LoadingContext context)
+    {
+        for (int i = 0; i <= 10; i++)
+        {
+            context.ReportStepProgress(i / 10f);
+            await UniTask.DelayFrame(1, cancellationToken: context.CancellationToken);
+        }
+
+        context.Set("remote_config_ready", true);
+    }
+}
+```
+
+## 9) Load scene nâng cao
+
+```csharp
+await SceneFlowManager.Instance.LoadSceneByName(
+    "ShopScene",
+    payload: null,
+    mode: LoadSceneMode.Additive,
+    useManualActivation: true,
+    activateDelay: 0.1f);
+```
+
+`LoadSceneStep` hỗ trợ:
+
+- async loading
+- `allowSceneActivation = false`
+- `Single` và `Additive`
+
+## 10) Event UI
+
+```csharp
+public static class LoadingEvents
+{
+    public static Action OnStart;
+    public static Action<float> OnProgress;
+    public static Action OnComplete;
+}
+```
+
+`LoadingUIPresenter` subscribe event để cập nhật `ILoadingUI`.
+
+## 11) Lưu ý `StubLoadingUI`
+
+`StubLoadingUI` có thể bị mất nếu không nằm dưới root DDOL.
+
+Setup an toàn:
+
+1. `SceneFlowManager` trên `BootstrapRoot`.
+2. `LoadingUI` là child của `BootstrapRoot`.
+3. Không đặt thêm `SceneFlowManager` ở scene khác.
+
+## 12) Cancellation token
+
+```csharp
+var ct = SceneFlowManager.Instance.GetCurrentSceneCancellationToken();
+await SomeLongTask(ct);
+```
+
+## License
+
+MIT
+# JIS Loading System (Tiếng Việt)
+
+Hệ thống loading dạng SDK cho Unity, hỗ trợ pipeline theo step, UI tách rời bằng event, và tiến độ mượt.
+
+English version: `README.en.md`
+
 ## 1) Yêu cầu
 
 - Unity `2022.3+`
