@@ -1,8 +1,12 @@
-# LoadingSystem
+# LoadingSystem (Tiếng Việt)
 
-Reusable Unity loading SDK published via UPM.
+Repository này chứa Unity package `com.jis.loadingsystem`, phát hành qua UPM.
 
-## Install via UPM
+English version: `README.en.md`
+
+## Cài đặt qua UPM
+
+Thêm vào `Packages/manifest.json`:
 
 ```json
 {
@@ -13,17 +17,16 @@ Reusable Unity loading SDK published via UPM.
 }
 ```
 
-## Documentation
+## Tài liệu chi tiết
 
-Detailed integration guide, template setup, architecture, and full examples:
+- Bản tiếng Việt (mặc định): `Assets/com.jis.loadingsystems/README.md`
+- Bản tiếng Anh: `Assets/com.jis.loadingsystems/README.en.md`
 
-- `Assets/com.jis.loadingsystems/README.md`
+## Bắt đầu nhanh
 
-## Quick Start
+1. Cài package bằng URL UPM ở trên.
+2. Chạy `Tools > JIS Loading System > Setup Template (1-click)`.
+3. Mở `BootstrapScene` được tạo tự động.
+4. Nhấn Play để test flow.
 
-1. Install package from UPM URL above.
-2. Run `Tools > JIS Loading System > Setup Template (1-click)`.
-3. Open generated `BootstrapScene`.
-4. Press Play.
-
-Template now creates `BootstrapRoot` with `SceneFlowManager` and child `LoadingUI`, so UI persists correctly across scene changes.
+Template đã được cấu hình để tạo `BootstrapRoot` + `LoadingUI` là object con, nên UI không bị mất khi chuyển scene kiểu `Single`.
